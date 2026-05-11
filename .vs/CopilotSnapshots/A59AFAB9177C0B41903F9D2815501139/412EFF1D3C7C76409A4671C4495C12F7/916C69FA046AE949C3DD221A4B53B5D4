@@ -1,0 +1,1047 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using System.Data.SqlClient;
+using iTextSharp.text;
+using iTextSharp.text.pdf;
+using System.IO;
+using System.Drawing.Printing;
+using System.Drawing.Drawing2D;
+using System.Windows.Forms.DataVisualization.Charting;
+
+namespace CollegeManagementSystem
+{
+    public partial class ReportModuleModernForm : Form
+    {
+        string cs = @"Data Source=localhost\SQLEXPRESS;Initial Catalog=CollegeDB;Integrated Security=True;TrustServerCertificate=True";
+        private PrintDocument printDocument1 = new PrintDocument();
+        private int currentRow = 0;
+        private decimal collectedFee = 1875000;
+        private decimal totalFee = 2500000;
+        public ReportModuleModernForm()
+        {
+            InitializeComponent();
+            printDocument1.DefaultPageSettings.Landscape = true;
+            printDocument1.DefaultPageSettings.Margins = new System.Drawing.Printing.Margins(20, 20, 20, 20);
+            printDocument1.PrintPage += printDocument1_PrintPage;
+            btnBottomExcel.Click += btnBottomExcel_Click;
+            btnRefresh.Click += btnRefresh_Click;
+            btnGenerateReport.MouseEnter += btnGenerateReport_MouseEnter;
+            btnGenerateReport.MouseLeave += btnGenerateReport_MouseLeave;
+
+            btnExportExcel.MouseEnter += btnExportExcel_MouseEnter;
+            btnExportExcel.MouseLeave += btnExportExcel_MouseLeave;
+
+            btnExportPdf.MouseEnter += btnExportPdf_MouseEnter;
+            btnExportPdf.MouseLeave += btnExportPdf_MouseLeave;
+
+            btnPrint.MouseEnter += btnPrint_MouseEnter;
+            btnPrint.MouseLeave += btnPrint_MouseLeave;
+
+            btnRefresh.MouseEnter += btnRefresh_MouseEnter;
+            btnRefresh.MouseLeave += btnRefresh_MouseLeave;
+
+        }
+
+        private void label17_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void ReportModuleModernForm_Load(object sender, EventArgs e)
+        {
+            dgvReport.EnableHeadersVisualStyles = false;
+            dgvReport.ColumnHeadersDefaultCellStyle.BackColor = System.Drawing.Color.FromArgb(10, 44, 92);
+            dgvReport.ColumnHeadersDefaultCellStyle.ForeColor = System.Drawing.Color.White;
+            dgvReport.ColumnHeadersDefaultCellStyle.Font = new System.Drawing.Font("Segoe UI", 10, System.Drawing.FontStyle.Bold);
+            dgvReport.ColumnHeadersHeight = 38;
+
+
+            dgvReport.DefaultCellStyle.Font = new System.Drawing.Font("Segoe UI", 10);
+            dgvReport.DefaultCellStyle.BackColor = System.Drawing.Color.White;
+            dgvReport.DefaultCellStyle.ForeColor = System.Drawing.Color.Black;
+            dgvReport.DefaultCellStyle.SelectionBackColor = System.Drawing.Color.FromArgb(230, 240, 255);
+            dgvReport.DefaultCellStyle.SelectionForeColor = System.Drawing.Color.Black;
+
+            dgvReport.AlternatingRowsDefaultCellStyle.BackColor = System.Drawing.Color.FromArgb(248, 250, 252);
+            dgvReport.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
+            dgvReport.RowHeadersVisible = false;
+            dgvReport.RowTemplate.Height = 34;
+            dgvReport.ReadOnly = true;
+            dgvReport.AllowUserToAddRows = false;
+            dgvReport.AllowUserToDeleteRows = false;
+            dgvReport.AllowUserToResizeRows = false;
+            dgvReport.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+
+            dgvReport.BackgroundColor = System.Drawing.Color.White;
+            dgvReport.BorderStyle = BorderStyle.None;
+            dgvReport.GridColor = System.Drawing.Color.Gainsboro;
+            dgvReport.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+            dgvReport.ScrollBars = ScrollBars.Both;
+
+            cmbReportType.SelectedIndex = 0;
+            cmbStatus.SelectedIndex = 0;
+            cmbClassDepartment.SelectedIndex = 0;
+            cmbSemester.SelectedIndex = 0;
+
+            LoadTotalStudentsCount();
+            MakeCircular(picAdmin);
+
+            MakeRoundedPanel(pnlAdmin, 40);
+            MakeRounded(pnlDateTime, 10);
+            MakeRounded(pnlActionButtons, 20);
+            MakeRounded(pnlAttendanceOverview, 20);
+            MakeRounded(pnlFeeCollection, 20);
+            MakeRounded(cardStudents, 20);
+            MakeRounded(cardFees, 20);
+            MakeRounded(cardFaculty, 20);
+            MakeRounded(cardPending, 20);
+            MakeRounded(cardAttendance, 20);
+            MakeRoundedButton(btnGenerateReport, 15);
+            MakeRoundedButton(btnExportExcel, 15);
+            MakeRoundedButton(btnExportPdf, 15);
+            MakeRoundedButton(btnPrint, 15);
+
+            MakeRoundedButton(btnBottomExcel, 15);
+            MakeRoundedButton(btnBottomPdf, 15);
+            MakeRoundedButton(btnBottomPrint, 15);
+            MakeRoundedButton(btnRefresh, 15);
+
+            AddShadow(cardStudents);
+            AddShadow(cardFees);
+            AddShadow(cardFaculty);
+            AddShadow(cardPending);
+            AddShadow(cardAttendance);
+            LoadAttendanceChart();
+            lblDateTime.Text = DateTime.Now.ToString("dd-MMM-yyyy hh:mm tt");
+            timer1.Start();
+            pnlFeeCollection.BackColor = System.Drawing.Color.White;
+            pnlFeeCollection.Invalidate();
+
+        }
+        private void LoadStudentReport()
+        {
+            try
+            {
+                using (SqlConnection con = new SqlConnection(cs))
+                {
+                    string query = @"SELECT 
+                                StudentId AS [Student ID],
+                                FirstName AS [First Name],
+                                LastName AS [Last Name],
+                                Gender AS [Gender],
+                                Phone AS [Contact],
+                                Email AS [Email],
+                                Address AS [Address],
+                                EnrollmentNo AS [Enrollment No],
+                                Course AS [Course],
+                                Semester AS [Semester],
+                                CONVERT(varchar, DateOfBirth, 105) AS [Date Of Birth],
+                                Status AS [Status]
+                             FROM dbo.Student
+                             WHERE 1=1";
+
+                    SqlCommand cmd = new SqlCommand();
+                    cmd.Connection = con;
+
+                    // Search by ID / First Name / Last Name
+                    if (!string.IsNullOrWhiteSpace(txtSearch.Text))
+                    {
+                        query += @" AND (
+                                CAST(StudentId AS varchar) LIKE @search
+                                OR FirstName LIKE @search
+                                OR LastName LIKE @search
+                            )";
+                        cmd.Parameters.AddWithValue("@search", "%" + txtSearch.Text.Trim() + "%");
+                    }
+
+                    // Status filter
+                    if (cmbStatus.SelectedItem != null && cmbStatus.Text != "All")
+                    {
+                        query += " AND Status = @status";
+                        cmd.Parameters.AddWithValue("@status", cmbStatus.Text);
+                    }
+
+                    // Course filter
+                    if (cmbClassDepartment.SelectedItem != null && cmbClassDepartment.Text != "All Courses")
+                    {
+                        query += " AND Course = @course";
+                        cmd.Parameters.AddWithValue("@course", cmbClassDepartment.Text);
+                    }
+
+                    // Semester filter
+                    if (cmbSemester.SelectedItem != null && cmbSemester.Text != "All Semesters")
+                    {
+                        query += " AND Semester = @semester";
+                        cmd.Parameters.AddWithValue("@semester", cmbSemester.Text);
+                    }
+                    // DOB filter
+                    if (dtpFrom.Checked)
+                    {
+                        query += " AND CAST(DateOfBirth AS DATE) = @dob";
+                        cmd.Parameters.AddWithValue("@dob", dtpFrom.Value.Date);
+                    }
+
+                    // Email filter
+                    if (!string.IsNullOrWhiteSpace(txtEmail.Text))
+                    {
+                        query += " AND Email LIKE @email";
+                        cmd.Parameters.AddWithValue("@email", "%" + txtEmail.Text.Trim() + "%");
+                    }
+                    cmd.CommandText = query;
+
+                    DataTable dt = new DataTable();
+                    SqlDataAdapter da = new SqlDataAdapter(cmd);   // IMPORTANT
+                    da.Fill(dt);
+
+                    dgvReport.DataSource = null;
+                    dgvReport.Columns.Clear();
+                    dgvReport.AutoGenerateColumns = true;
+                    dgvReport.DataSource = dt;
+
+                    if (dgvReport.Rows.Count > 0)
+                    {
+                        dgvReport.FirstDisplayedScrollingColumnIndex = 0;
+                    }
+
+                    dgvReport.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+                    dgvReport.ScrollBars = ScrollBars.Both;
+
+                    dgvReport.Columns["Student ID"].Width = 100;
+                    dgvReport.Columns["First Name"].Width = 130;
+                    dgvReport.Columns["Last Name"].Width = 130;
+                    dgvReport.Columns["Gender"].Width = 90;
+                    dgvReport.Columns["Contact"].Width = 130;
+                    dgvReport.Columns["Email"].Width = 220;
+                    dgvReport.Columns["Address"].Width = 220;
+                    dgvReport.Columns["Enrollment No"].Width = 140;
+                    dgvReport.Columns["Course"].Width = 120;
+                    dgvReport.Columns["Semester"].Width = 100;
+                    dgvReport.Columns["Date Of Birth"].Width = 120;
+                    dgvReport.Columns["Status"].Width = 100;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error while loading student report: " + ex.Message);
+            }
+        }
+
+        private void LoadTotalStudentsCount()
+        {
+            try
+            {
+                using (SqlConnection con = new SqlConnection(cs))
+                {
+                    string query = "SELECT COUNT(*) FROM dbo.Student";
+                    SqlCommand cmd = new SqlCommand(query, con);
+
+                    con.Open();
+                    int totalStudents = Convert.ToInt32(cmd.ExecuteScalar());
+
+                    lblTotalStudentsValue.Text = totalStudents.ToString();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error while loading total students count: " + ex.Message);
+            }
+        }
+
+        private void LoadFeeReport()
+        {
+            MessageBox.Show("Fee report table is not available yet.");
+        }
+
+        private void LoadFacultyReport()
+        {
+            MessageBox.Show("Faculty report table is not available yet.");
+        }
+
+        private void LoadFacilityReport()
+        {
+            MessageBox.Show("Facility report table is not available yet.");
+        }
+
+        private void LoadAttendanceReport()
+        {
+            MessageBox.Show("Attendance report table is not available yet.");
+        }
+        private void label18_Click(object sender, EventArgs e)
+        {
+
+        }
+        private void MakeCircular(PictureBox pic)
+        {
+            GraphicsPath gp = new GraphicsPath();
+            gp.AddEllipse(0, 0, pic.Width - 1, pic.Height - 1);
+            pic.Region = new Region(gp);
+        }
+
+        private void MakeRoundedPanel(Panel pnl, int radius)
+        {
+            GraphicsPath path = new GraphicsPath();
+            path.StartFigure();
+
+            path.AddArc(new System.Drawing.Rectangle(0, 0, radius, radius), 180, 90);
+            path.AddArc(new System.Drawing.Rectangle(pnl.Width - radius, 0, radius, radius), 270, 90);
+            path.AddArc(new System.Drawing.Rectangle(pnl.Width - radius, pnl.Height - radius, radius, radius), 0, 90);
+            path.AddArc(new System.Drawing.Rectangle(0, pnl.Height - radius, radius, radius), 90, 90);
+
+            path.CloseFigure();
+            pnl.Region = new Region(path);
+        }
+
+        private void MakeRounded(Panel pnl, int radius)
+        {
+            System.Drawing.Drawing2D.GraphicsPath path = new System.Drawing.Drawing2D.GraphicsPath();
+
+            path.StartFigure();
+            path.AddArc(new System.Drawing.Rectangle(0, 0, radius, radius), 180, 90);
+            path.AddArc(new System.Drawing.Rectangle(pnl.Width - radius, 0, radius, radius), 270, 90);
+            path.AddArc(new System.Drawing.Rectangle(pnl.Width - radius, pnl.Height - radius, radius, radius), 0, 90);
+            path.AddArc(new System.Drawing.Rectangle(0, pnl.Height - radius, radius, radius), 90, 90);
+            path.CloseFigure();
+
+            pnl.Region = new Region(path);
+        }
+
+        private void LoadAttendanceChart()
+        {
+           
+        
+            chartAttendance.Series.Clear();
+            chartAttendance.ChartAreas.Clear();
+            chartAttendance.Legends.Clear();
+
+            chartAttendance.BackColor = System.Drawing.Color.White;
+            chartAttendance.Palette = ChartColorPalette.None;
+
+            ChartArea ca = new ChartArea("AttendanceArea");
+            ca.BackColor = System.Drawing.Color.White;
+            chartAttendance.ChartAreas.Add(ca);
+
+            Series s = new Series("Attendance");
+            s.ChartType = SeriesChartType.Doughnut;
+            s.ChartArea = "AttendanceArea";
+            s.IsValueShownAsLabel = false;
+            s["PieLabelStyle"] = "Disabled";
+            s["DoughnutRadius"] = "60";
+            s.BorderWidth = 0;
+
+            s.Points.AddXY("Present", 75);
+            s.Points.AddXY("Absent", 19);
+            s.Points.AddXY("Late", 10);
+
+            s.Points[0].Color = System.Drawing.Color.FromArgb(24, 160, 88);
+            s.Points[1].Color = System.Drawing.Color.FromArgb(220, 53, 69);
+            s.Points[2].Color = System.Drawing.Color.FromArgb(245, 158, 11);
+
+            chartAttendance.Series.Add(s);
+
+            Legend lg = new Legend();
+            lg.Enabled = false;
+            chartAttendance.Legends.Add(lg);
+        }
+        
+
+        private void DrawRoundedBorder(Panel pnl, PaintEventArgs e, int radius, System.Drawing.Color borderColor, int borderWidth)
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+            using (Pen pen = new Pen(borderColor, borderWidth))
+            {
+                System.Drawing.Rectangle rect = new System.Drawing.Rectangle(0, 0, pnl.Width - 1, pnl.Height - 1);
+                GraphicsPath path = new GraphicsPath();
+
+                path.StartFigure();
+                path.AddArc(rect.X, rect.Y, radius, radius, 180, 90);
+                path.AddArc(rect.Right - radius, rect.Y, radius, radius, 270, 90);
+                path.AddArc(rect.Right - radius, rect.Bottom - radius, radius, radius, 0, 90);
+                path.AddArc(rect.X, rect.Bottom - radius, radius, radius, 90, 90);
+                path.CloseFigure();
+
+                e.Graphics.DrawPath(pen, path);
+            }
+        }
+
+        private void MakeRoundedButton(Button btn, int radius)
+        {
+            GraphicsPath path = new GraphicsPath();
+            path.StartFigure();
+
+            path.AddArc(0, 0, radius, radius, 180, 90);
+            path.AddArc(btn.Width - radius, 0, radius, radius, 270, 90);
+            path.AddArc(btn.Width - radius, btn.Height - radius, radius, radius, 0, 90);
+            path.AddArc(0, btn.Height - radius, radius, radius, 90, 90);
+
+            path.CloseFigure();
+            btn.Region = new Region(path);
+        }
+        private void AddShadow(Panel pnl)
+        {
+            pnl.Paint += (s, e) =>
+            {
+                ControlPaint.DrawBorder(e.Graphics, pnl.ClientRectangle,
+                    System.Drawing.Color.FromArgb(220, 220, 220), 1, ButtonBorderStyle.Solid,
+                    System.Drawing.Color.FromArgb(220, 220, 220), 1, ButtonBorderStyle.Solid,
+                    System.Drawing.Color.FromArgb(220, 220, 220), 1, ButtonBorderStyle.Solid,
+                    System.Drawing.Color.FromArgb(220, 220, 220), 1, ButtonBorderStyle.Solid);
+            };
+        }
+
+        private void PrintData()
+        {
+            try
+            {
+                if (dgvReport.Rows.Count == 0)
+                {
+                    MessageBox.Show("No data available to print.");
+                    return;
+                }
+
+                currentRow = 0;
+                PrintPreviewDialog preview = new PrintPreviewDialog();
+                preview.Document = printDocument1;
+                preview.Width = 1200;
+                preview.Height = 800;
+                currentRow = 0;
+                preview.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error while printing: " + ex.Message);
+            }
+        }
+
+        private void printDocument1_PrintPage(object sender, PrintPageEventArgs e)
+        {
+            e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+
+            int leftMargin = e.MarginBounds.Left;
+            int topMargin = e.MarginBounds.Top;
+            int y = topMargin;
+
+            System.Drawing.Font titleFont = new System.Drawing.Font("Segoe UI", 14, FontStyle.Bold);
+            System.Drawing.Font subFont = new System.Drawing.Font("Segoe UI", 9);
+            System.Drawing.Font headerFont = new System.Drawing.Font("Segoe UI", 9, FontStyle.Bold);
+            System.Drawing.Font cellFont = new System.Drawing.Font("Segoe UI", 9);
+
+            // Title
+            e.Graphics.DrawString("College Management System - Report Module", titleFont, Brushes.Black, leftMargin, y);
+            y += 28;
+            e.Graphics.DrawString("Generated on: " + DateTime.Now.ToString("dd-MMM-yyyy hh:mm tt"), subFont, Brushes.Black, leftMargin, y);
+            y += 25;
+
+            // Print only selected columns
+            string[] printColumns = { "Student ID", "First Name", "Last Name", "Gender", "Contact", "Course", "Semester", "Status" };
+            int[] colWidths = { 80, 110, 110, 70, 110, 90, 80, 80 };
+
+            int headerHeight = 28;
+            int rowHeight = 26;
+
+            int x = leftMargin;
+
+            // Header
+            for (int i = 0; i < printColumns.Length; i++)
+            {
+                System.Drawing.Rectangle rect = new System.Drawing.Rectangle(x, y, colWidths[i], headerHeight);
+                e.Graphics.FillRectangle(Brushes.LightGray, rect);
+                e.Graphics.DrawRectangle(Pens.Black, rect);
+
+                StringFormat sf = new StringFormat();
+                sf.Alignment = StringAlignment.Center;
+                sf.LineAlignment = StringAlignment.Center;
+                sf.Trimming = StringTrimming.EllipsisCharacter;
+
+                e.Graphics.DrawString(printColumns[i], headerFont, Brushes.Black, rect, sf);
+                x += colWidths[i];
+            }
+
+            y += headerHeight;
+
+            // Rows
+            while (currentRow < dgvReport.Rows.Count)
+            {
+                x = leftMargin;
+
+                for (int i = 0; i < printColumns.Length; i++)
+                {
+                    string colName = printColumns[i];
+                    if (!dgvReport.Columns.Contains(colName))
+                        continue;
+
+                    string text = dgvReport.Rows[currentRow].Cells[colName].Value?.ToString() ?? "";
+
+                    System.Drawing.Rectangle rect = new System.Drawing.Rectangle(x, y, colWidths[i], rowHeight);
+                    e.Graphics.DrawRectangle(Pens.Black, rect);
+
+                    StringFormat sf = new StringFormat();
+                    sf.Alignment = StringAlignment.Near;
+                    sf.LineAlignment = StringAlignment.Center;
+                    sf.Trimming = StringTrimming.EllipsisCharacter;
+
+                    System.Drawing.RectangleF textRect = new System.Drawing.RectangleF(rect.X + 3, rect.Y + 3, rect.Width - 6, rect.Height - 6);
+                    e.Graphics.DrawString(text, cellFont, Brushes.Black, textRect, sf);
+
+                    x += colWidths[i];
+                }
+
+                y += rowHeight;
+                currentRow++;
+
+                if (y + rowHeight > e.MarginBounds.Bottom)
+                {
+                    e.HasMorePages = true;
+                    return;
+                }
+            }
+
+            e.HasMorePages = false;
+            currentRow = 0;
+        }
+        private void DrawFeeCollectionCard(Panel pnl, PaintEventArgs e, decimal collected, decimal total)
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+            // White card background
+            using (SolidBrush bgBrush = new SolidBrush(System.Drawing.Color.FromArgb(224,224,224)))
+            {
+                e.Graphics.FillRectangle(bgBrush, pnl.ClientRectangle);
+            }
+
+            // Rounded border
+            using (Pen borderPen = new Pen(System.Drawing.Color.FromArgb(220, 220, 220), 1))
+            {
+                GraphicsPath borderPath = new GraphicsPath();
+                int r = 20;
+
+                borderPath.AddArc(0, 0, r, r, 180, 90);
+                borderPath.AddArc(pnl.Width - r - 1, 0, r, r, 270, 90);
+                borderPath.AddArc(pnl.Width - r - 1, pnl.Height - r - 1, r, r, 0, 90);
+                borderPath.AddArc(0, pnl.Height - r - 1, r, r, 90, 90);
+                borderPath.CloseFigure();
+
+                e.Graphics.DrawPath(borderPen, borderPath);
+            }
+
+            // Title
+            using (System.Drawing.Font titleFont = new System.Drawing.Font("Segoe UI", 14, System.Drawing.FontStyle.Bold))
+            using (SolidBrush titleBrush = new SolidBrush(System.Drawing.Color.Black))
+            {
+                e.Graphics.DrawString("Fee Collection", titleFont, titleBrush, 18, 14);
+            }
+
+            // Progress bar values
+            float percent = 0;
+            if (total > 0)
+                percent = (float)(collected / total);
+
+            int x = 20;
+            int y = 54;
+            int barWidth = pnl.Width - 40;
+            int barHeight = 16;
+
+            // Light green background bar
+            using (GraphicsPath bgPath = new GraphicsPath())
+            {
+                bgPath.AddArc(x, y, barHeight, barHeight, 90, 180);
+                bgPath.AddArc(x + barWidth - barHeight, y, barHeight, barHeight, 270, 180);
+                bgPath.CloseFigure();
+
+                using (SolidBrush lightBrush = new SolidBrush(System.Drawing.Color.FromArgb(198, 234, 213)))
+                {
+                    e.Graphics.FillPath(lightBrush, bgPath);
+                }
+            }
+
+            // Filled dark green bar
+            int fillWidth = (int)(barWidth * percent);
+            if (fillWidth > 0)
+            {
+                if (fillWidth < barHeight)
+                    fillWidth = barHeight;
+
+                using (GraphicsPath fillPath = new GraphicsPath())
+                {
+                    if (fillWidth >= barWidth)
+                    {
+                        fillPath.AddArc(x, y, barHeight, barHeight, 90, 180);
+                        fillPath.AddArc(x + barWidth - barHeight, y, barHeight, barHeight, 270, 180);
+                    }
+                    else
+                    {
+                        fillPath.AddArc(x, y, barHeight, barHeight, 90, 180);
+                        fillPath.AddArc(x + fillWidth - barHeight, y, barHeight, barHeight, 270, 180);
+                    }
+
+                    fillPath.CloseFigure();
+
+                    using (SolidBrush darkBrush = new SolidBrush(System.Drawing.Color.FromArgb(24, 160, 88)))
+                    {
+                        e.Graphics.FillPath(darkBrush, fillPath);
+                    }
+                }
+            }
+
+            // Amount text
+            System.Globalization.CultureInfo india = new System.Globalization.CultureInfo("en-IN");
+            string feeText = "₹ " + collected.ToString("N0", india) + " / ₹ " + total.ToString("N0", india);
+
+            using (System.Drawing.Font valueFont = new System.Drawing.Font("Segoe UI", 13, System.Drawing.FontStyle.Bold))
+            using (SolidBrush valueBrush = new SolidBrush(System.Drawing.Color.Black))
+            {
+                e.Graphics.DrawString(feeText, valueFont, valueBrush, 18, 84);
+            }
+
+            // Bottom orange highlight like image
+            using (SolidBrush orangeBrush = new SolidBrush(System.Drawing.Color.FromArgb(245, 158, 11)))
+            {
+                e.Graphics.FillRectangle(orangeBrush, 0, pnl.Height - 4, 90, 4);
+            }
+        }
+        private void btnGenerateReport_Click(object sender, EventArgs e)
+        {
+            if (cmbReportType.Text == "Student Report")
+            {
+                LoadStudentReport();
+            }
+            else if (cmbReportType.Text == "Fee Report")
+            {
+                LoadFeeReport();
+            }
+            else if (cmbReportType.Text == "Faculty Report")
+            {
+                LoadFacultyReport();
+            }
+            else if (cmbReportType.Text == "Facility Report")
+            {
+                LoadFacilityReport();
+            }
+            else if (cmbReportType.Text == "Attendance Report")
+            {
+                LoadAttendanceReport();
+            }
+            else
+            {
+                MessageBox.Show("Please select a report type.");
+            }
+        }
+
+        private void btnRefresh_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                // Date time refresh
+                lblDateTime.Text = DateTime.Now.ToString("dd-MMM-yyyy hh:mm:ss tt");
+
+                // Top cards / counts refresh
+                LoadTotalStudentsCount();
+
+                // Chart refresh
+                LoadAttendanceChart();
+
+                // Fee panel redraw
+                pnlFeeCollection.Invalidate();
+
+                // Attendance panel redraw
+                pnlAttendanceOverview.Invalidate();
+
+                // Current selected report refresh
+                if (cmbReportType.Text == "Student Report")
+                {
+                    LoadStudentReport();
+                }
+                else if (cmbReportType.Text == "Fee Report")
+                {
+                    LoadFeeReport();
+                }
+                else if (cmbReportType.Text == "Faculty Report")
+                {
+                    LoadFacultyReport();
+                }
+                else if (cmbReportType.Text == "Facility Report")
+                {
+                    LoadFacilityReport();
+                }
+                else if (cmbReportType.Text == "Attendance Report")
+                {
+                    LoadAttendanceReport();
+                }
+
+                MessageBox.Show("Report refreshed successfully.");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error while refreshing: " + ex.Message);
+            }
+        }
+        private void btnSearch_Click(object sender, EventArgs e)
+        {
+            if (cmbReportType.Text == "Student Report")
+            {
+                LoadStudentReport();
+            }
+            else if (cmbReportType.Text == "Fee Report")
+            {
+                LoadFeeReport();
+            }
+            else if (cmbReportType.Text == "Faculty Report")
+            {
+                LoadFacultyReport();
+            }
+            else if (cmbReportType.Text == "Facility Report")
+            {
+                LoadFacilityReport();
+            }
+            else if (cmbReportType.Text == "Attendance Report")
+            {
+                LoadAttendanceReport();
+            }
+            else
+            {
+                MessageBox.Show("Please select a report type.");
+            }
+        }
+
+        private void btnReset_Click(object sender, EventArgs e)
+        {
+            txtSearch.Clear();
+            dtpFrom.Checked = false;
+            txtEmail.Clear();
+
+            cmbReportType.SelectedIndex = 0;
+            cmbStatus.SelectedIndex = 0;
+            cmbClassDepartment.SelectedIndex = 0;
+            cmbSemester.SelectedIndex = 0;
+
+
+            if (cmbReportType.Text == "Student Report")
+            {
+                LoadStudentReport();
+            }
+            else
+            {
+                dgvReport.DataSource = null;
+            }
+        }
+
+        private void lblTotalStudentsValue_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void cardStudents_Paint(object sender, PaintEventArgs e)
+        {
+
+        }
+
+        private void ExportToPdf()
+        {
+            try
+            {
+                if (dgvReport.Rows.Count == 0)
+                {
+                    MessageBox.Show("No data found to export.");
+                    return;
+                }
+
+                SaveFileDialog sfd = new SaveFileDialog();
+                sfd.Filter = "PDF File|*.pdf";
+                sfd.Title = "Save PDF File";
+                sfd.FileName = "Report.pdf";
+
+                if (sfd.ShowDialog() == DialogResult.OK)
+                {
+                    iTextSharp.text.Document doc = new iTextSharp.text.Document(iTextSharp.text.PageSize.A4.Rotate(), 10f, 10f, 10f, 10f);
+                    PdfWriter.GetInstance(doc, new FileStream(sfd.FileName, FileMode.Create));
+                    doc.Open();
+
+                    Paragraph title = new Paragraph("College Management System - Report Module");
+                    title.Alignment = Element.ALIGN_CENTER;
+                    title.SpacingAfter = 10f;
+                    doc.Add(title);
+
+                    Paragraph subtitle = new Paragraph("Generated on: " + DateTime.Now.ToString("dd-MMM-yyyy hh:mm tt"));
+                    subtitle.Alignment = Element.ALIGN_CENTER;
+                    subtitle.SpacingAfter = 10f;
+                    doc.Add(subtitle);
+
+                    PdfPTable table = new PdfPTable(dgvReport.Columns.Count);
+                    table.WidthPercentage = 100;
+
+                    // Header
+                    for (int i = 0; i < dgvReport.Columns.Count; i++)
+                    {
+                        PdfPCell cell = new PdfPCell(new Phrase(dgvReport.Columns[i].HeaderText));
+                        cell.BackgroundColor = new iTextSharp.text.Color(211, 211, 211);
+                        table.AddCell(cell);
+                    }
+
+                    // Data
+                    for (int i = 0; i < dgvReport.Rows.Count; i++)
+                    {
+                        for (int j = 0; j < dgvReport.Columns.Count; j++)
+                        {
+                            table.AddCell(dgvReport.Rows[i].Cells[j].Value?.ToString() ?? "");
+                        }
+                    }
+
+                    doc.Add(table);
+                    doc.Close();
+
+                    MessageBox.Show("PDF exported successfully.");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error exporting PDF: " + ex.Message);
+            }
+        }
+        private void ExportToExcel()
+        {
+            try
+            {
+                if (dgvReport.Rows.Count == 0)
+                {
+                    MessageBox.Show("No data found to export.");
+                    return;
+                }
+
+                SaveFileDialog sfd = new SaveFileDialog();
+                sfd.Filter = "CSV File|*.csv";
+                sfd.Title = "Save CSV File";
+                sfd.FileName = "Report.csv";
+
+                if (sfd.ShowDialog() == DialogResult.OK)
+                {
+                    using (var sw = new StreamWriter(sfd.FileName, false, new System.Text.UTF8Encoding(true)))
+                    {
+                        // Headers
+                        List<string> headers = new List<string>();
+                        for (int i = 0; i < dgvReport.Columns.Count; i++)
+                        {
+                            headers.Add(EscapeCsv(dgvReport.Columns[i].HeaderText));
+                        }
+                        sw.WriteLine(string.Join(",", headers));
+
+                        // Rows
+                        for (int i = 0; i < dgvReport.Rows.Count; i++)
+                        {
+                            List<string> row = new List<string>();
+                            for (int j = 0; j < dgvReport.Columns.Count; j++)
+                            {
+                                row.Add(EscapeCsv(dgvReport.Rows[i].Cells[j].Value?.ToString() ?? ""));
+                            }
+                            sw.WriteLine(string.Join(",", row));
+                        }
+                    }
+
+                    MessageBox.Show("CSV exported successfully.");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error exporting CSV: " + ex.Message);
+            }
+        }
+
+        private string EscapeCsv(string s)
+        {
+            if (s == null)
+                return "";
+            if (s.Contains(",") || s.Contains("\"") || s.Contains("\n") || s.Contains("\r"))
+            {
+                return "\"" + s.Replace("\"", "\"\"") + "\"";
+            }
+            return s;
+        }
+
+        private void btnExportExcel_Click(object sender, EventArgs e)
+        {
+            ExportToExcel();
+        }
+
+        private void btnExportPdf_Click(object sender, EventArgs e)
+        {
+            MessageBox.Show("PDF clicked");
+            ExportToPdf();
+        }
+
+        private void btnPrint_Click(object sender, EventArgs e)
+        {
+            PrintData();
+        }
+        private void btnBottomExcel_Click(object sender, EventArgs e)
+        {
+            ExportToExcel();
+        }
+
+        private void btnBottomPdf_Click(object sender, EventArgs e)
+        {
+            ExportToPdf();
+        }
+
+        private void btnBottomPrint_Click(object sender, EventArgs e)
+        {
+            PrintData();
+        }
+        private void btnBottomPdf_Click_1(object sender, EventArgs e)
+        {
+            ExportToPdf();
+        }
+
+        private void btnBottomPrint_Click_1(object sender, EventArgs e)
+        {
+            PrintData();
+        }
+
+        private void btnPrint_Click_1(object sender, EventArgs e)
+        {
+            PrintData();
+        }
+
+        private void btnExportPdf_Click_1(object sender, EventArgs e)
+        {
+            MessageBox.Show("PDF clicked");
+            ExportToPdf();
+        }
+
+        private void btnBottomExcel_Click_1(object sender, EventArgs e)
+        {
+            ExportToExcel();
+        }
+
+        private void picAdmin_Click(object sender, EventArgs e)
+        {
+
+        }
+        private void pnlAdmin_Paint(object sender, PaintEventArgs e)
+        {
+
+        }
+
+        private void timer1_Tick(object sender, EventArgs e)
+        {
+            lblDateTime.Text = DateTime.Now.ToString("dd-MMM-yyyy hh:mm:ss tt");
+        }
+        private void pnlDateTime_Resize(object sender, EventArgs e)
+        {
+            MakeRounded(pnlDateTime, 30);
+        }
+
+        private void pnlFeeCollection_Paint(object sender, PaintEventArgs e)
+        {
+            DrawFeeCollectionCard(pnlFeeCollection, e, collectedFee, totalFee);
+
+        }
+
+        private void pnlAttendanceOverview_Paint(object sender, PaintEventArgs e)
+        {
+            DrawRoundedBorder(pnlAttendanceOverview, e, 20, System.Drawing.Color.LightGray, 2);
+        }
+
+        private void pnlActionButtons_Paint(object sender, PaintEventArgs e)
+        {
+            DrawRoundedBorder(pnlActionButtons, e, 20, System.Drawing.Color.LightGray, 2);
+        }
+        private void pnlFeeCollection_Resize(object sender, EventArgs e)
+        {
+            MakeRounded(pnlFeeCollection, 20);
+        }
+
+        private void pnlAttendanceOverview_Resize(object sender, EventArgs e)
+        {
+            MakeRounded(pnlAttendanceOverview, 20);
+        }
+
+        private void pnlActionButtons_Resize(object sender, EventArgs e)
+        {
+            MakeRounded(pnlActionButtons, 20);
+        }
+
+
+        private void cardFaculty_Paint(object sender, PaintEventArgs e)
+        {
+            DrawRoundedBorder(cardFaculty, e, 20, System.Drawing.Color.LightGray, 2);
+        }
+        private void cardPending_Paint(object sender, PaintEventArgs e)
+        {
+            DrawRoundedBorder(cardPending, e, 20, System.Drawing.Color.LightGray, 2);
+        }
+        private void cardAttendance_Paint(object sender, PaintEventArgs e)
+        {
+            DrawRoundedBorder(cardAttendance, e, 20, System.Drawing.Color.LightGray, 2);
+        }
+        private void cardFees_Resize(object sender, EventArgs e)
+        {
+            MakeRounded(cardFees, 20);
+        }
+        private void cardFaculty_Resize(object sender, EventArgs e)
+        {
+            MakeRounded(cardFaculty, 20);
+        }
+        private void cardPending_Resize(object sender, EventArgs e)
+        {
+            MakeRounded(cardPending, 20);
+        }
+        private void cardAttendance_Resize(object sender, EventArgs e)
+        {
+            MakeRounded(cardAttendance, 20);
+        }
+        private void btnGenerateReport_MouseEnter(object sender, EventArgs e)
+        {
+            btnGenerateReport.BackColor = System.Drawing.Color.FromArgb(240, 248, 255);
+        }
+
+        private void btnGenerateReport_MouseLeave(object sender, EventArgs e)
+        {
+            btnGenerateReport.BackColor = System.Drawing.Color.White;
+        }
+        private void btnExportExcel_MouseEnter(object sender, EventArgs e)
+        {
+            btnExportExcel.BackColor = System.Drawing.Color.FromArgb(240, 255, 240);
+        }
+
+        private void btnExportExcel_MouseLeave(object sender, EventArgs e)
+        {
+            btnExportExcel.BackColor = System.Drawing.Color.White;
+        }
+        private void btnExportPdf_MouseEnter(object sender, EventArgs e)
+        {
+            btnExportPdf.BackColor = System.Drawing.Color.FromArgb(255, 245, 245);
+        }
+
+        private void btnExportPdf_MouseLeave(object sender, EventArgs e)
+        {
+            btnExportPdf.BackColor = System.Drawing.Color.White;
+        }
+        private void btnPrint_MouseEnter(object sender, EventArgs e)
+        {
+            btnPrint.BackColor = System.Drawing.Color.FromArgb(245, 248, 250);
+        }
+
+        private void btnPrint_MouseLeave(object sender, EventArgs e)
+        {
+            btnPrint.BackColor = System.Drawing.Color.White;
+        }
+
+        private void btnRefresh_MouseEnter(object sender, EventArgs e)
+        {
+            btnRefresh.BackColor = System.Drawing.Color.FromArgb(240, 248, 255);
+        }
+
+        private void btnRefresh_MouseLeave(object sender, EventArgs e)
+        {
+            btnRefresh.BackColor = System.Drawing.Color.White;
+        }
+    }
+    }
+
